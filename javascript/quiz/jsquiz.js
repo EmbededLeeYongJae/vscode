@@ -2,6 +2,7 @@
 # 프로그램 1 : 퀴즈프로그램
 # 개요
 # - 프로그램이 시작되면 이름을 입력 받는다.
+    let userInput;
 # - 초기화면에서 이름과 점수를 고득점자 순으로 출력한다.
 # - 10개의 단답형 퀴즈를 10초마다 한 문제씩 출제한다. 
 # - 건너뛰기 버튼을 클릭하면 다음퀴즈로 넘어간다.
@@ -14,7 +15,6 @@ $(function() {
     let score = 0;
     let quizData = [];
     let quizTimer;
-    let userInput;
 
     $("#start").on("click", function() {
        userInput = prompt("이름을 입력하세요");
