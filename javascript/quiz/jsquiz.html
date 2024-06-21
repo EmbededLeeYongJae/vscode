@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>퀴즈 프로그램</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="jsquiz.js"></script>
+    <style>
+        #box {
+             width: 600px; height: 600px; border: 1px solid #333;
+             position: relative;
+        }
+        #quizbox {
+            width: 500px; height: 300px; border: 1px solid #333;
+            margin: 20px auto 0 auto;
+            position: relative;
+        }
+        h1{ text-align: center;}
+        h2{ text-align: center;}
+        table {
+            border-collapse: collapse;
+            width: 50%;
+            margin-top: 20px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        p { width: 600px; text-align: center }
+        input[type='button'] { width: 80px; height: 35px; }
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="box">
+            <div id="quizbox">
+                <h1>퀴즈프로그램</h1>
+            </div>
+            <div>
+            <table>
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>이름</th>
+                    <th>점수</th>
+                  </tr>
+                </thead>
+                <tbody id="scoreboard">
+
+
+
+
+                </tbody>
+              </table>
+            </div>
+        </div>
+        <p>
+            <input id="start" type="button" value="시작" />&nbsp;
+            <input id="pass" type="button" value="건너뛰기" />
+        </p>
+    </div>
+</body>
+</html>

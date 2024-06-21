@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>layout1</title>
+    <style>
+        *{
+            margin: 0;
+        }
+       .cls { /* 모든 div에 적용 */
+            width: 100px;
+            height: 100px;
+            display: inline;
+
+        }
+        #wrapper{
+            position: relative;
+            top: 50px;
+            left: 50px;
+        }
+        #div1 {
+            background-color: yellow;
+            float: left;
+            position: relative;
+            top: 150px;
+            left: 50px;
+        }
+
+        #div2 {
+            background-color: red;
+            float: left;  
+            position: relative;
+            clear: both;
+            top: 50px;
+            left: 150px;
+        }
+        #div3 {
+            background-color: blue;
+            float: left; 
+            position: relative;
+            clear: both;
+            top:  0px;
+            left: 50px;
+        }
+        #div4{
+            background-color: brown;
+            float: left;
+            position: relative;
+            top: 0px;
+            left: 50px;
+        }
+
+    
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="div1" class="cls">
+            div1
+        </div>
+        <div id="div2" class="cls">
+            div2
+        </div>
+        <div id="div3" class="cls">
+            div3
+        </div>
+        <div id = "div4" class="cls">
+            div4
+        </div>
+    </div>
+</body>
+</html>
