@@ -8,7 +8,7 @@
 # - 10개의 퀴즈를 끝내면 이름과 점수를 localStorage에 저장한다.
 */
 
-$(function() {
+$(function() { 
     
     let currentQuestionIndex = 0;
     let score = 0;
