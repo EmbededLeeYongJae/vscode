@@ -10,6 +10,15 @@ $(() => {
     $('#shwriteBtn').on('click', () => {
         writeShop();
     });
+    // 재고목록 출력
+    printStockList();    
+
+    // 이벤트핸들러 등록
+     $('#stwriteBtn').on('click', () => {
+      writeStock();
+    });
+
+
 
 });
 
@@ -112,29 +121,32 @@ const getNextStockSeq = () => {
 // 재고목록
 const getStockList = () => {
     return JSON.parse(localStorage.getItem('stockList'))
-            .sort((a,b) => b.stno - b.stno);
+            .sort((a,b) => b.stno - a.stno);
 };
 
 // 재고목록 출력
 const printStockList = () => {
     $('#stocklist table tbody').html('');
+    
+    const stockList = getStockList(); 
+    
     if(stockList) {
-    getStockList().forEach(stock => {
-        let tr = $('<tr></tr>');
-        tr.append($('<td>' + stock.stno + '</td>'));
-        tr.append($('<td>' + stock.stname + '</td>'));
-        tr.append($('<td>' + stock.stamt + '</td>'));
-        tr.append($('<td>' + stock.stindate + '</td>'));
-        tr.append($('<td>' + stock.strgdate + '</td>'));
-        tr.append($('<td><input type="button" value="수정" /></td>'));
-        tr.append($('<td><input id="deleteStock' + stock.stno + '" type="button" value="삭제" /></td>'));
-        $('#stocklist table tbody').append(tr);
-     
-        $('#' + 'deleteStock' + stock.stno).on('click', () => {
-            deleteStock(stock.stno);
-        });          
-    });
-}
+        stockList.forEach(stock => {
+            let tr = $('<tr></tr>');
+            tr.append($('<td>' + stock.stno + '</td>'));
+            tr.append($('<td>' + stock.stname + '</td>'));
+            tr.append($('<td>' + stock.stamt + '</td>'));
+            tr.append($('<td>' + stock.stindate + '</td>'));
+            tr.append($('<td>' + stock.strgdate + '</td>')); 
+            tr.append($('<td><input type="button" value="수정" /></td>'));
+            tr.append($('<td><input id="deleteStock' + stock.stno + '" type="button" value="삭제" /></td>'));
+            $('#stocklist table tbody').append(tr);
+         
+            $('#' + 'deleteStock' + stock.stno).on('click', () => {
+                deleteStock(stock.stno);
+            });          
+        });
+    }
 };
 
 // 재고수정
