@@ -5,8 +5,11 @@
 //import ReactProps from "./3.ReactPros";
 //import ReactEvents from "./4.ReactEvents.js";
 //import NumberCounter from "./NumberCounter.js";
-import ReactUseState from "./7.ReactUseState";
-import GetData from "./GetData.js";
+//import ReactUseState from "./7.ReactUseState";
+//import GetData from "./GetData.js";
+//import ReactStyledComponent from "./10.ReactStyledComponent";
+//import ReactLayout from "./9.ReactLayout";
+import ReactContextAPI from "./11.ReactContextAPI.js";
 
 function App() {
   return (
@@ -21,7 +24,10 @@ function App() {
     //<ReactEvents />
     //<NumberCounter />
     //<ReactUseState />
-    <GetData />
+    //<GetData />
+    //<ReactLayout />
+    //<ReactStyledComponent />
+    <ReactContextAPI />
   );
 }
 
