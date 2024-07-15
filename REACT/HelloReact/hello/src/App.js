@@ -9,7 +9,11 @@
 //import GetData from "./GetData.js";
 //import ReactStyledComponent from "./10.ReactStyledComponent";
 //import ReactLayout from "./9.ReactLayout";
-import ReactContextAPI from "./11.ReactContextAPI.js";
+//import ReactContextAPI from "./11.ReactContextAPI.js";
+//import ReactReducer from "./12.ReactReducer.js";
+//import ReactCalc from "./13.ReactCalc.js";
+//import ReactRedux from "./14.ReactRedux.js";
+
 
 function App() {
   return (
@@ -27,7 +31,13 @@ function App() {
     //<GetData />
     //<ReactLayout />
     //<ReactStyledComponent />
-    <ReactContextAPI />
+    //<ReactContextAPI />
+    //<ReactReducer />
+    //<ReactCalc />
+    //<ReactRedux />
+ 
+
+    
   );
 }
 
