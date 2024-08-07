@@ -3,7 +3,7 @@ const oracledb = require('oracledb');
 const bodyParser = require('body-parser');
 
 const app = express();
-const port = 3000;
+const port = 5500;
 
 // Oracle 데이터베이스 연결 설정
 const dbConfig = {
@@ -28,46 +28,27 @@ initializeDatabase();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// 사용자 ID 중복 확인 엔드포인트
-app.post('/check-userid', async (req, res) => {
-    const userid = req.body.userid;
-
-    if (!userid) {
-        return res.status(400).json({ error: 'ID가 필요합니다.' });
-    }
-
-    const query = 'SELECT COUNT(*) AS count FROM users WHERE userid = :userid';
-    try {
-        const connection = await oracledb.getConnection();
-        const result = await connection.execute(query, [userid]);
-        connection.close();
-
-        if (result.rows[0].COUNT > 0) {
-            return res.json({ exists: true });
-        } else {
-            return res.json({ exists: false });
-        }
-    } catch (err) {
-        console.error('쿼리 실행 오류:', err.message);
-        return res.status(500).json({ error: err.message });
-    }
-});
-
 // 회원가입 엔드포인트
 app.post('/register', async (req, res) => {
-    const { userid, password, email, phoneNumber, username, birthdate } = req.body;
+    const { email, password, phoneNumber, userId, photo, doj, dom, address, admin, activation, userName } = req.body;
 
-    const query = `INSERT INTO users (userid, password, email, phoneNumber, username, birthdate)
-                   VALUES (:userid, :password, :email, :phoneNumber, :username, :birthdate)`;
+    const query = `INSERT INTO USERS (U_NUM, EMAIL, U_PW, U_PHONE, U_ID, U_PHOTO, U_DOJ, U_DOM, U_ADD, ADMIN, ACTIVATION, U_NAME)
+                   VALUES (USERS_SEQ.NEXTVAL, :email, :password, :phoneNumber, :userId, :photo, :doj, :dom, :address, :admin, :activation, :userName)`;
+
     try {
         const connection = await oracledb.getConnection();
         await connection.execute(query, {
-            userid,
-            password,
             email,
+            password,
             phoneNumber,
-            username,
-            birthdate
+            userId,
+            photo,
+            doj: doj ? new Date(doj) : null,
+            dom: dom ? new Date(dom) : null,
+            address,
+            admin,
+            activation,
+            userName
         }, { autoCommit: true });
         connection.close();
 
