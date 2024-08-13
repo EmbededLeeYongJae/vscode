@@ -282,6 +282,82 @@ app.post('/api/reset-password', async (req, res) => {
     }
 });
 
+//로그인 엔드포인트 추가
+app.post('/api/login', async (req, res) => {
+    const { userid, password } = req.body;
+
+    try {
+        const connection = await oracledb.getConnection(dbConfig);
+
+        // 데이터베이스에서 사용자 정보 조회
+        const result = await connection.execute(
+            `SELECT U_ID, U_PW, U_NAME FROM USERS WHERE U_ID = :userid`,
+            { userid }
+        );
+
+
+        if (result.rows.length > 0) {
+            const hashedPassword = result.rows[0][1];
+            const userName = result.rows[0][2];
+
+            // 비밀번호 비교
+            const passwordMatch = await bcrypt.compare(password, hashedPassword);
+
+            if (passwordMatch) {
+                // 로그인 성공 시, 사용자 아이디와 함께 반환
+                res.status(200).json({ success: true, userid: result.rows[0][0] });
+            } else {
+                res.status(401).json({ success: false, message: '비밀번호가 일치하지 않습니다.' });
+            }
+        } else {
+            res.status(404).json({ success: false, message: '해당 아이디가 존재하지 않습니다.' });
+        }
+    } catch (err) {
+        console.error('로그인 오류:', err.message);
+        res.status(500).json({ success: false, message: err.message });
+    }finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
+// 회원 탈퇴 처리 엔드포인트
+app.post('/api/withdrawal', async (req, res) => {
+    const { userId } = req.body;
+
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+
+        // 각 테이블에서 사용자와 관련된 데이터를 삭제
+        await connection.execute(`DELETE FROM REPORT WHERE U_NUM = :userId`, { userId });
+        await connection.execute(`DELETE FROM COMMENTS WHERE INQ_ID IN (SELECT INQ_ID FROM INQUIRY WHERE U_NUM = :userId)`, { userId });
+        await connection.execute(`DELETE FROM INQUIRY WHERE U_NUM = :userId`, { userId });
+        await connection.execute(`DELETE FROM CHAT WHERE BKG_NUM IN (SELECT BKG_NUM FROM BROKERAGE WHERE U_NUM = :userId)`, { userId });
+        await connection.execute(`DELETE FROM REVIEW WHERE BKG_NUM IN (SELECT BKG_NUM FROM BROKERAGE WHERE U_NUM = :userId)`, { userId });
+        await connection.execute(`DELETE FROM BROKERAGE WHERE U_NUM = :userId`, { userId });
+        await connection.execute(`DELETE FROM WATCHLIST WHERE U_NUM = :userId`, { userId });
+        await connection.execute(`DELETE FROM PET WHERE P_NUM IN (SELECT P_NUM FROM BROKERAGE WHERE U_NUM = :userId)`, { userId });
+        await connection.execute(`DELETE FROM USERS WHERE U_NUM = :userId`, { userId });
+
+        // 커밋하여 변경 사항 적용
+        await connection.commit();
+
+        res.status(200).json({ success: true, message: '회원 탈퇴가 완료되었습니다.' });
+    } catch (err) {
+        console.error('회원 탈퇴 처리 중 오류 발생:', err.message);
+        res.status(500).json({ success: false, message: '회원 탈퇴 처리 중 오류가 발생했습니다.' });
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                console.error('DB 연결 종료 중 오류 발생:', err.message);
+            }
+        }
+    }
+});
 
 
 

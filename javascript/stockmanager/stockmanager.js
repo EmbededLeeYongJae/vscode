@@ -18,8 +18,6 @@ $(() => {
       writeStock();
     });
 
-
-
 });
 
 // localStorage 초기화

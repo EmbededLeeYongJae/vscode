@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await response.json();
             if (data.success) {
                 alert('로그인 성공');
+                localStorage.setItem('userid', data.userid); // 아이디를 로컬 스토리지에 저장
+                localStorage.setItem('userName', data.userName);
                 window.location.href = 'main.html'; // 메인 페이지로 리다이렉트
             } else {
                 alert('로그인 실패: 아이디 또는 비밀번호가 잘못되었습니다.');

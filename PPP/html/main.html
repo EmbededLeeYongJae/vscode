@@ -188,7 +188,7 @@
     <div class="container">
 
       <a href="#" class="navbar-brand d-flex align-items-center">
-            <img src="../img/Logo.png" alt="Logo" width="100" height="80" class="me-2">
+            <img src="../img/logo.png" alt="Logo" width="100" height="80" class="me-2">
         </a>
         <nav class="servicemenu">
           <ul>
@@ -197,12 +197,17 @@
               <li><a href="#inquiriesmatters">문의사항</a></l이용 약관i>
           </ul>
       </nav>
-    <div class="auth-buttons">
-      <a href="#hoewongaib" class="btn hoewongaib">회원가입</a>
-      <a href="#login" class="btn login">로그인</a>
-    </div>
+      <div class="auth-buttons">
+        <span id="userid-display" style="display: none;"></span> <!-- 로그인한 사용자 아이디를 표시할 부분 -->
+        <a href="#" id="logout-button" class="btn logout" style="display: none;">로그아웃</a> <!-- 로그아웃 버튼 -->
+        <a href="#hoewongaib" id="signup-button" class="btn hoewongaib">회원가입</a> <!-- 회원가입 버튼 -->
+        <a href="#login" id="login-button" class="btn login">로그인</a> <!-- 로그인 버튼 -->
+      </div>
+      
     </div>
 </div>
+</div>
+
 </header>
 
 <main>
@@ -418,8 +423,6 @@
     </div>
 </div>
 </div>
-
-
 </main>
 
 <footer class="text-body-secondary py-5">
