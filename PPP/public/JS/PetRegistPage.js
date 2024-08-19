@@ -1,6 +1,5 @@
-// PetRegistPage.js
 // 탭 전환 기능
-function openTab(tabName) {
+function openTab(tabName, event) {
     var i;
     var x = document.getElementsByClassName("tabcontent");
     var tablinks = document.getElementsByClassName("tablink");
@@ -46,24 +45,34 @@ document.getElementById("photo").addEventListener("change", function() {
 document.getElementById("uploaded-image").addEventListener("click", triggerFileInput);
 
 document.querySelector("form").addEventListener("submit", function(event) {
-    var name = document.getElementById("name").value;
-    var breed = document.getElementById("breed").value;
-    var gender = document.querySelector("input[name='gender']:checked");
+    event.preventDefault(); // 폼 제출을 막음
 
-    if (!name || !breed || !gender) {
-        event.preventDefault(); // 폼 제출을 막음
-        alert("모든 필수 필드를 입력해주세요.");
-    }
+    var form = document.getElementById("petForm");
+    var formData = new FormData(form);
+
+    fetch('http://localhost:5500/register-pet', { // 절대 경로 사용
+        method: 'POST',
+        body: formData, // FormData 객체를 전송
+    })
+    .then(response => {
+        if (!response.ok) {
+            console.error('Server response not OK:', response);
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Server response data:', data);
+        if (data.success) {
+            alert('애완동물 등록 성공');
+            console.log('Redirecting to MyPage.html');
+            window.location.href = '../html/MyPage.html';
+        } else {
+            alert('애완동물 등록 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch Error:', error);
+        alert('애완동물 등록 중 오류가 발생했습니다.');
+    });
 });
-
-document.querySelector("form").addEventListener("submit", function(event) {
-    var imgElement = document.getElementById("uploaded-image");
-    if (imgElement.style.display === "none") {
-        event.preventDefault();
-        alert("사진을 업로드해주세요.");
-    }
-});
-
-
-
-

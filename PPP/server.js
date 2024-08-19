@@ -14,11 +14,10 @@ const FileStore = require('session-file-store')(session);
 const app = express();
 const port = 5500;
 const corsOptions = {
-    origin: 'http://127.0.0.1:5500',
-    credentials: true,
+    origin: ['http://127.0.0.1:5500'], // 클라이언트에서 요청하는 정확한 출처 명시
+    credentials: true, // 쿠키를 포함한 자격 증명을 허용
     optionsSuccessStatus: 200
 };
-
 
 oracledb.initOracleClient({ libDir: 'D:\\oracle\\instantclient_19_24' }); // Oracle Instant Client 경로 설정
 
@@ -28,48 +27,24 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-    secret: 'secret-key',
-    resave: false, // 세션이 수정되지 않은 경우 다시 저장하지 않음
-    saveUninitialized: false, // 초기화되지 않은 세션은 저장하지 않음
+    store: new FileStore({
+        path: './sessions',
+        retries: 1,
+    }),
+    secret: 'your_secret_key_1234567890',
+    resave: false,
+    saveUninitialized: false,
+    genid: function(req) {
+        return crypto.randomBytes(16).toString('hex'); // 동적으로 세션 ID 생성
+    },
     cookie: {
-        maxAge: 86400000,
-        sameSite: 'Lax'
+        path: '/',
+        httpOnly: true,
+        secure: false,
+        sameSite: 'Lax', 
     }
 }));
 
-
-app.get('/', (req, res) => {
-    // 기존 세션이 있는지 확인
-    if (!req.session.user) {
-        req.session.user = { userid: 'fixedUser', username: 'Fixed User' };
-    }
-    res.sendFile(path.join(__dirname, 'html', 'main.html'));
-});
-
-app.use((req, res, next) => {
-    const fixedSessionId = 'fixedSessionId123456'; // 강제로 고정할 세션 ID 설정
-
-    // 세션 ID를 강제로 고정
-    if (!req.sessionID || req.sessionID !== fixedSessionId) {
-        req.sessionID = fixedSessionId;
-    }
-
-    if (!req.session.user) {
-        console.log('세션에 사용자 정보 없음, 세션 재생성 안함');
-        // 기존 세션을 유지하도록 수정, 새로운 세션을 생성하지 않음
-        req.session.user = { userid: 'fixedUser', username: 'Fixed User' };
-    } else {
-        console.log('기존 세션 사용:', req.sessionID);
-    }
-
-    req.session.save((err) => {
-        if (err) {
-            console.error('세션 저장 오류:', err);
-            return res.status(500).json({ success: false, message: '세션 저장 중 오류가 발생했습니다.' });
-        }
-        next();
-    });
-});
 
 
 
@@ -93,7 +68,14 @@ const transporter = nodemailer.createTransport({
 // Multer 설정
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'public', 'uploads'));
+        const uploadPath = path.join(__dirname, 'public', 'uploads');
+        
+        // 폴더가 없는 경우 생성
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        
+        cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
         const uniqueName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname)}`;
@@ -110,14 +92,11 @@ app.post('/api/register', async (req, res) => {
     try {
         const connection = await oracledb.getConnection(dbConfig);
 
-        // 비밀번호 암호화
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // 사용자 정보 삽입
+        // 사용자 정보 삽입 (비밀번호를 암호화하지 않고 그대로 저장)
         await connection.execute(
             `INSERT INTO USERS (U_NUM, U_ID, U_PW, U_PHONE, EMAIL, U_NAME, U_ADD, U_DOJ, ADMIN, ACTIVATION) 
-            VALUES (USERS_SEQ.NEXTVAL, :userid, :hashedPassword, :phoneNumber, :email, :username, :address, SYSDATE, 'N', 'Y')`,
-            { userid, hashedPassword, phoneNumber, email, username, address },
+            VALUES (USERS_SEQ.NEXTVAL, :userid, :password, :phoneNumber, :email, :username, :address, SYSDATE, 'N', 'Y')`,
+            { userid, password, phoneNumber, email, username, address },
             { autoCommit: true }
         );
 
@@ -155,39 +134,38 @@ app.post('/api/validate-userid', async (req, res) => {
 });
 
 // 로그인 처리 엔드포인트
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { userid, password } = req.body;
 
-    if (userid === 'jin' && password === 'password') {
-        req.session.user = {
-            userid: 'fixedUser',
-            username: 'Fixed User'
-        };
-        console.log('세션 고정 및 저장 완료:', req.session);
-        res.json({ success: true });
-    } else {
-        res.json({ success: false, message: '로그인 실패' });
+    try {
+        const connection = await oracledb.getConnection(dbConfig);
+        const result = await connection.execute(`SELECT U_PW, U_NAME FROM USERS WHERE U_ID = :userid`, { userid });
+        await connection.close();
+
+        if (result.rows.length > 0) {
+            const storedPassword = result.rows[0][0];
+            const username = result.rows[0][1];
+
+            if (password === storedPassword) {  // 원본 비밀번호와 그대로 비교
+                req.session.user = { userid, username }; // 세션에 사용자 정보 저장
+                res.status(200).json({ success: true, sessionId: req.sessionID });
+            } else {
+                res.status(401).json({ success: false, message: '비밀번호가 일치하지 않습니다.' });
+            }
+            
+        } else {
+            res.status(404).json({ success: false, message: '해당 아이디가 존재하지 않습니다.' });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, message: '로그인 중 오류가 발생했습니다.', error: err.message });
     }
 });
-
-app.get('/api/check-login', (req, res) => {
-    if (req.session.user) {
-        console.log('로그인 상태 확인: 세션에 사용자 정보 있음');
-        res.json({ loggedIn: true, username: req.session.user.username });
-    } else {
-        console.log('로그인 상태 확인: 세션에 사용자 정보 없음');
-        res.json({ loggedIn: false });
-    }
-});
-
 
 
 
 
 
 app.get('/api/check-login', async (req, res) => {
-    console.log('세션 정보:', req.session);
-
     if (req.session.user) {
         try {
             const connection = await oracledb.getConnection(dbConfig);
@@ -195,20 +173,18 @@ app.get('/api/check-login', async (req, res) => {
                 `SELECT U_NAME FROM USERS WHERE U_ID = :userid`,
                 { userid: req.session.user.userid }
             );
-            console.log('로그인 상태 쿼리 결과:', result);
+
             await connection.close();
 
             if (result.rows.length > 0) {
-                res.json({ loggedIn: true, username: req.session.user.username });
+                res.json({ loggedIn: true, username: result.rows[0][0] });
             } else {
                 res.json({ loggedIn: false });
             }
         } catch (err) {
-            console.error('로그인 상태 확인 오류:', err.message);
             res.status(500).json({ loggedIn: false, error: err.message });
         }
     } else {
-        console.log('로그인 상태 확인: 세션에 사용자 정보 없음');
         res.json({ loggedIn: false });
     }
 });
@@ -324,7 +300,6 @@ app.post('/api/reset-password', async (req, res) => {
         );
 
         if (result.rows.length > 0) {
-            const hashedPassword = await bcrypt.hash(newPassword, 10); // 비밀번호 암호화
             await connection.execute(
                 `UPDATE USERS SET U_PW = :hashedPassword WHERE EMAIL = :email`,
                 { hashedPassword, email },
@@ -362,30 +337,49 @@ app.get('/uploads/:filename', (req, res) => {
     });
 });
 
+
+
 // 문의사항 등록
 app.post('/api/inquiries', upload.single('attachment'), async (req, res) => {
-    const { title, description, type } = req.body;
-    const attachment = req.file ? req.file.filename : null;
-    const originalName = req.file ? req.file.originalname : null;
-
     try {
+        const { title, description, type } = req.body;
+        const attachment = req.file ? req.file.filename : null;
+        const originalName = req.file ? req.file.originalname : null;
+        const userId = req.body.userId;
+
+        console.log('POST /api/inquiries 요청 데이터:', req.body);
+
         const connection = await oracledb.getConnection(dbConfig);
 
-        const result = await connection.execute(
-            `INSERT INTO INQUIRY (INQ_ID, INQ_TITLE, INQ_TEXT, INQ_DATE, INQ_STATUS, INQ_TYPE, INQ_IMGS, INQ_IMGO) 
-             VALUES (INQUIRY_SEQ.NEXTVAL, :title, :description, SYSTIMESTAMP, '접수', :type, :attachment, :originalName)`,
-            [title, description, type, attachment, originalName],
-            { autoCommit: true }
+        // 사용자 이름 가져오기
+        const userResult = await connection.execute(
+            `SELECT U_NAME FROM USERS WHERE U_NUM = :userId`,
+            [userId]
         );
 
-        await connection.close();
+        if (userResult.rows.length === 0) {
+            throw new Error('해당 사용자 없음');
+        }
 
+        const userName = userResult.rows[0][0];
+
+        // 문의 사항 삽입
+        await connection.execute(
+            `INSERT INTO INQUIRY (INQ_ID, INQ_TITLE, INQ_TEXT, INQ_DATE, INQ_STATUS, INQ_TYPE, U_NAME) 
+             VALUES (INQUIRY_SEQ.NEXTVAL, :title, :description, SYSTIMESTAMP, '접수', :type, :userName)`,
+            [title, description, type, userName],
+            { autoCommit: true }  // 자동 커밋 설정
+        );
+                
+
+        await connection.close();
         res.status(200).json({ success: true });
     } catch (err) {
-        console.error('문의 제출 중 오류가 발생했습니다:', err.message);
+        console.error('문의 제출 중 오류 발생:', err.message);
         res.status(500).json({ success: false, message: '문의 제출 중 오류가 발생했습니다.', error: err.message });
     }
 });
+
 
 // 문의사항 목록 조회
 app.get('/api/inquiries', async (req, res) => {
@@ -393,11 +387,14 @@ app.get('/api/inquiries', async (req, res) => {
 
     try {
         const connection = await oracledb.getConnection(dbConfig);
+        
+        const query = `SELECT INQ_ID, INQ_TITLE, INQ_DATE, INQ_STATUS, U_NAME FROM INQUIRY WHERE LOWER(INQ_TYPE) = LOWER(:type) ORDER BY INQ_DATE DESC`;
+        console.log('실행된 쿼리:', query);
+        console.log('사용된 값:', type);
 
-        const result = await connection.execute(
-            `SELECT INQ_ID, INQ_TITLE, INQ_DATE, INQ_STATUS FROM INQUIRY WHERE INQ_TYPE = :type ORDER BY INQ_DATE DESC`,
-            [type]
-        );
+        const result = await connection.execute(query, [type]);
+
+        console.log('쿼리 결과:', result.rows);
 
         await connection.close();
 
@@ -405,7 +402,8 @@ app.get('/api/inquiries', async (req, res) => {
             INQ_ID: row[0],
             INQ_TITLE: row[1],
             INQ_DATE: row[2],
-            INQ_STATUS: row[3]
+            INQ_STATUS: row[3],
+            U_NAME: row[4]  // U_NAME 필드 추가
         }));
 
         res.status(200).json(inquiries);
@@ -414,6 +412,8 @@ app.get('/api/inquiries', async (req, res) => {
         res.status(500).json({ success: false, message: '문의 목록 로드 중 오류가 발생했습니다.', error: err.message });
     }
 });
+
+
 
 // 문의사항 상세 조회
 app.get('/api/inquiries/:id', async (req, res) => {
@@ -484,6 +484,151 @@ app.get('/api/get-user-id', (req, res) => {
         res.status(404).json({ error: 'User not logged in' });
     }
 });
+
+// 애완동물 등록 API
+app.post('/register-pet', upload.single('photo'), async (req, res) => { // Multer 미들웨어 추가
+    let connection;
+    console.log('Received body:', req.body); // 요청에서 받은 데이터 확인
+    console.log('Received file:', req.file); // 업로드된 파일 확인
+
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+
+        const { name, weight, height, breed, age, gender, health, vaccination, introduction } = req.body;
+        const photo = req.file ? req.file.filename : null;
+
+        const breedCombined = Array.isArray(breed) ? breed.join(',') : breed;
+        const type = Array.isArray(breed) ? breed[0] : breed;
+
+        const weightNum = parseFloat(weight);
+        const heightNum = parseFloat(height);
+        const ageNum = parseFloat(age);
+
+        if (isNaN(weightNum) || isNaN(heightNum) || isNaN(ageNum)) {
+            console.log('Invalid number input:', { weightNum, heightNum, ageNum });
+            return res.status(400).send("유효하지 않은 숫자 입력입니다.");
+        }
+
+        const result = await connection.execute(
+            `INSERT INTO PET (P_NUM, P_NAME, P_WEI, P_HEI, P_TYPE, P_KIND, P_AGE, P_PHOTO, P_HS, P_VR, P_GENDER, P_ITD)
+             VALUES (PET_SEQ.NEXTVAL, :name, :weight, :height, :type, :breed, :age, :photo, :health, :vaccination, :gender, :introduction)`,
+            {
+                name: name,
+                weight: weightNum,
+                height: heightNum,
+                type: type,
+                breed: breedCombined,
+                age: ageNum,
+                photo: photo || null,
+                health: health || null,
+                vaccination: vaccination || null,
+                gender: gender,
+                introduction: introduction || null
+            },
+            { autoCommit: true }
+        );
+
+        res.status(200).json({ success: true, message: "애완동물이 성공적으로 등록되었습니다." });
+    } catch (err) {
+        console.error('Database operation error:', err);
+        res.status(500).json({ success: false, message: "애완동물 등록 중 오류가 발생했습니다." });
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                console.error('Error closing connection:', err);
+            }
+        }
+    }
+});
+
+  
+app.get('/api/pet-info', async (req, res) => {
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        console.log("Fetching pet info...");  // 로그 추가
+        const result = await connection.execute(`SELECT P_NUM, P_NAME, P_ITD, P_PHOTO FROM PET`);
+
+        const pets = result.rows.map(row => ({
+            id: row[0],
+            name: row[1],
+            introduction: row[2],
+            photo: row[3]
+        }));
+
+        console.log("Fetched pets:", pets);  // 로그 추가
+        res.status(200).json(pets);
+    } catch (err) {
+        console.error('Error fetching pet info:', err);
+        res.status(500).json({ error: 'Error fetching pet info' });
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                console.error('Error closing connection:', err);
+            }
+        }
+    }
+});
+
+
+app.delete('/api/pet/:id', async (req, res) => {
+    const petId = req.params.id;
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+        await connection.execute(`DELETE FROM PET WHERE P_NUM = :id`, { id: petId }, { autoCommit: true });
+        res.status(200).json({ success: true });
+    } catch (err) {
+        console.error('Error deleting pet:', err);
+        res.status(500).json({ error: 'Error deleting pet' });
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                console.error('Error closing connection:', err);
+            }
+        }
+    }
+});
+
+//회원탈퇴
+app.post('/api/withdrawal', async (req, res) => {
+    const { userId } = req.body;
+    console.log('Received userId:', userId); // userId 값 로그 확인
+
+    if (userId !== 1) {
+        return res.status(400).json({ success: false, message: '잘못된 사용자 ID입니다.' });
+    }
+
+    let connection;
+    try {
+        connection = await oracledb.getConnection(dbConfig);
+
+        const result = await connection.execute(`DELETE FROM USERS WHERE U_NUM = :userId`, { userId });
+
+        await connection.commit();
+        console.log('Delete result:', result); // 삭제 결과 확인
+
+        res.status(200).json({ success: true, message: '회원 탈퇴가 완료되었습니다.' });
+    } catch (err) {
+        console.error('회원 탈퇴 처리 중 오류 발생:', err.message);
+        res.status(500).json({ success: false, message: '회원 탈퇴 처리 중 오류가 발생했습니다.' });
+    } finally {
+        if (connection) {
+            try {
+                await connection.close();
+            } catch (err) {
+                console.error('DB 연결 종료 중 오류 발생:', err.message);
+            }
+        }
+    }
+});
+
 
 // 정적 파일 제공 설정
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
