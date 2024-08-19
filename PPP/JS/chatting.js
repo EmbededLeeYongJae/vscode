@@ -465,7 +465,7 @@ socket.on('chatDisabled', function(data) {
         if (confirmExit) {
             $chatMessages.empty(); 
             socket.emit('leaveRoom', { room, username: currentUser });
-            window.location.href = '../html/main.html'; // main.html로 이동
+            window.location.href = '../html/main1.html'; // main.html로 이동
         }
     });
 
