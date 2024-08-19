@@ -8,10 +8,13 @@ const cors = require('cors');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
+const http = require('http'); // 추가
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
+const socketIo = require('socket.io');
 
 const app = express();
+const server = http.createServer(app); // 서버 생성
 const port = 5500;
 const corsOptions = {
     origin: ['http://127.0.0.1:5500'], // 클라이언트에서 요청하는 정확한 출처 명시
@@ -20,6 +23,16 @@ const corsOptions = {
 };
 
 oracledb.initOracleClient({ libDir: 'D:\\oracle\\instantclient_19_24' }); // Oracle Instant Client 경로 설정
+
+
+const io = socketIo(server, {
+    cors: {
+        origin: "http://127.0.0.1:5500",
+        methods: ["GET", "POST"]
+    }
+});
+
+
 
 // 미들웨어 설정
 app.use(cors(corsOptions));
@@ -45,6 +58,56 @@ app.use(session({
     }
 }));
 
+
+io.on('connection', (socket) => {
+    console.log('A user connected');
+
+    socket.on('joinRoom', ({ room, username, bkgNum }) => {
+        socket.join(room);
+        console.log(`${username} joined room: ${room}`);
+        io.to(room).emit('userJoined', { username });
+    });
+
+    const orderedMessages = [
+        '안녕하세요!',
+        '네 가능합니다',
+        '그럼 거래 시작 눌러주세요ㅎㅎ',
+        '좋은 하루 되세요!',
+        '무엇을 도와드릴까요?'
+    ];
+
+    let lastMessageIndex = 0; // Keep track of the last sent message
+
+    socket.on('sendMessage', (data) => {
+        const { room, message, sender, profileIcon } = data;
+        io.to(room).emit('receiveMessage', { message, sender, profileIcon });
+
+        function sendResponseMessage() {
+            if (lastMessageIndex < orderedMessages.length) {
+                const responseMessage = orderedMessages[lastMessageIndex];
+                io.to(room).emit('receiveMessage', { message: responseMessage, sender: '이수보', profileIcon: '<div class="profile-icon"></div>' });
+                lastMessageIndex++;
+            }
+        }
+
+        // Trigger response message 2 seconds after user sends a message
+        setTimeout(sendResponseMessage, 2000);
+    });
+
+    socket.on('sendFile', (data) => {
+        const { room, fileData, fileType, fileName, sender, profileIcon } = data;
+        io.to(room).emit('receiveFile', { fileData, fileType, fileName, sender, profileIcon });
+    });
+
+    socket.on('leaveRoom', ({ room, username }) => {
+        socket.leave(room);
+        console.log(`${username} left room: ${room}`);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('A user disconnected');
+    });
+});
 
 
 
@@ -301,8 +364,8 @@ app.post('/api/reset-password', async (req, res) => {
 
         if (result.rows.length > 0) {
             await connection.execute(
-                `UPDATE USERS SET U_PW = :hashedPassword WHERE EMAIL = :email`,
-                { hashedPassword, email },
+                `UPDATE USERS SET U_PW = :newPassword WHERE EMAIL = :email`,
+                { newPassword, email },
                 { autoCommit: true }
             );
             res.status(200).json({ success: true, message: '비밀번호가 성공적으로 재설정되었습니다.' });
@@ -316,6 +379,7 @@ app.post('/api/reset-password', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // 파일 업로드 엔드포인트
 app.post('/api/upload', upload.single('file'), (req, res) => {
@@ -347,7 +411,7 @@ app.post('/api/inquiries', upload.single('attachment'), async (req, res) => {
         const originalName = req.file ? req.file.originalname : null;
         const userId = req.body.userId;
 
-        console.log('POST /api/inquiries 요청 데이터:', req.body);
+        console.log('POST/api/inquiries 요청 데이터:', req.body);
 
         const connection = await oracledb.getConnection(dbConfig);
 
@@ -364,12 +428,31 @@ app.post('/api/inquiries', upload.single('attachment'), async (req, res) => {
         const userName = userResult.rows[0][0];
 
         // 문의 사항 삽입
+        let inquiryType = '';
+        switch (type) {
+            case 'service':
+                inquiryType = '서비스 문의';
+                break;
+            case 'review':
+                inquiryType = '리뷰 및 평점 문의';
+                break;
+            case 'account':
+                inquiryType = '계정 관련 문의';
+                break;
+            case 'report':
+                inquiryType = '신고 문의';
+                break;
+            default:
+                throw new Error('Unknown inquiry type');
+        }
+        
         await connection.execute(
             `INSERT INTO INQUIRY (INQ_ID, INQ_TITLE, INQ_TEXT, INQ_DATE, INQ_STATUS, INQ_TYPE, U_NAME) 
-             VALUES (INQUIRY_SEQ.NEXTVAL, :title, :description, SYSTIMESTAMP, '접수', :type, :userName)`,
-            [title, description, type, userName],
-            { autoCommit: true }  // 자동 커밋 설정
+             VALUES (INQUIRY_SEQ.NEXTVAL, :title, :description, SYSTIMESTAMP, '접수', :inquiryType, :userName)`,
+            [title, description, inquiryType, userName],
+            { autoCommit: true }
         );
+        
                 
 
         await connection.close();
@@ -548,7 +631,7 @@ app.get('/api/pet-info', async (req, res) => {
     let connection;
     try {
         connection = await oracledb.getConnection(dbConfig);
-        console.log("Fetching pet info...");  // 로그 추가
+        console.log("Fetching pet info...");
         const result = await connection.execute(`SELECT P_NUM, P_NAME, P_ITD, P_PHOTO FROM PET`);
 
         const pets = result.rows.map(row => ({
@@ -558,7 +641,7 @@ app.get('/api/pet-info', async (req, res) => {
             photo: row[3]
         }));
 
-        console.log("Fetched pets:", pets);  // 로그 추가
+        console.log("Fetched pets:", pets);
         res.status(200).json(pets);
     } catch (err) {
         console.error('Error fetching pet info:', err);
@@ -596,6 +679,9 @@ app.delete('/api/pet/:id', async (req, res) => {
     }
 });
 
+
+
+
 //회원탈퇴
 app.post('/api/withdrawal', async (req, res) => {
     const { userId } = req.body;
@@ -609,10 +695,11 @@ app.post('/api/withdrawal', async (req, res) => {
     try {
         connection = await oracledb.getConnection(dbConfig);
 
+        // USERS 테이블에서 U_NUM이 1인 사용자만 삭제
         const result = await connection.execute(`DELETE FROM USERS WHERE U_NUM = :userId`, { userId });
 
         await connection.commit();
-        console.log('Delete result:', result); // 삭제 결과 확인
+        console.log('Delete result:', result.rowsAffected); // 삭제 결과 확인
 
         res.status(200).json({ success: true, message: '회원 탈퇴가 완료되었습니다.' });
     } catch (err) {
@@ -628,6 +715,11 @@ app.post('/api/withdrawal', async (req, res) => {
         }
     }
 });
+
+
+
+
+
 
 
 // 정적 파일 제공 설정
